@@ -102,3 +102,23 @@ git config --global merge.ours.driver true
 ## 许可证
 
 [PolyForm Noncommercial License 1.0.0](LICENSE)
+
+## Emilia TTS 自动配音脚本
+
+脚本入口：`src/EmiliaTTS/index.ts`。将该脚本导入酒馆助手后，它会监听 `MESSAGE_RECEIVED`，从回复中的 `<tts>...</tts>` 标签提取内容；标签内容按 `{角色名} 台词` 行格式解析，调用 OpenAI 兼容 LLM 选择参考音频并翻译，再调用 GSV-TTS-Lite 的 `/tts/batched` 接口合成。
+
+脚本会在对应楼层的匹配文本后插入“🔊 播放”按钮。脚本变量会保存配置和最近 30 个任务。脚本按钮 **打开 Emilia TTS 任务** 可直接打开任务详情面板；也可以在酒馆助手脚本环境中调用：
+
+```ts
+(globalThis as any).EmiliaTTS.openTaskViewer()
+```
+
+面板中配置 XML 标签、TTS 后端地址、LLM 地址、模型和 API Key。参考音频映射默认来自 `src/EmiliaTTS/mapping.json`；其中 `audio_path` 必须是 GSV-TTS 后端所在机器可读取的路径，`prompt_text` 应填写参考音频对应的原文。
+
+默认流程需要回复包含类似内容：
+
+```xml
+<tts>
+{爱蜜莉雅} ありがとう、スバル。
+</tts>
+```
