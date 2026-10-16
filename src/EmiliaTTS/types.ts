@@ -23,6 +23,8 @@ export interface DialogueItem {
   audio_url?: string | null
   output_filename?: string | null
   error_message?: string | null
+  /** 合并/拆分后该条目对应的「原始提取对白」的 index；用于回查 context 等原始信息 */
+  sourceIndex?: number
   // 分段拆分与拼接相关字段
   groupId?: string // 原始所属句子分组ID，同一原句拆分的子句拥有相同的 groupId
   partIndex?: number // 分段序号，从 1 开始

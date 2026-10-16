@@ -24,14 +24,18 @@ export const DEFAULT_LLM_CONFIG: LLMConfig = {
   customPrompt: ''
 }
 
-export const DEFAULT_SETTINGS: PluginSettings = {
-  tts: { ...DEFAULT_TTS_CONFIG },
-  llm: { ...DEFAULT_LLM_CONFIG },
-  xmlTag: 'tts',
-  auto: true,
-  references: (mappingData as AudioReference[]) || [],
-  customPrompt: ''
+export function createDefaultSettings(): PluginSettings {
+  return {
+    tts: { ...DEFAULT_TTS_CONFIG },
+    llm: { ...DEFAULT_LLM_CONFIG },
+    xmlTag: 'tts',
+    auto: true,
+    references: Array.isArray(mappingData) ? JSON.parse(JSON.stringify(mappingData)) : [],
+    customPrompt: ''
+  }
 }
+
+export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze(createDefaultSettings())
 
 const VAR_TYPE = { type: 'script' as const }
 const STORAGE_KEY = 'emilia_tts_plugin_settings'
@@ -63,11 +67,9 @@ export function loadPluginSettings(): PluginSettings {
     }
   }
 
-  if (!saved) {
-    return {
-      ...DEFAULT_SETTINGS,
-      references: JSON.parse(JSON.stringify(DEFAULT_SETTINGS.references))
-    }
+  // 空存储或解析异常：必须深拷贝返回，绝不共享模块级对象引用
+  if (!saved || typeof saved !== 'object') {
+    return createDefaultSettings()
   }
 
   // 兼容扁平结构与嵌套结构

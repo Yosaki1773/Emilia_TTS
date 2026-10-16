@@ -342,29 +342,42 @@ async function handleLlmMatch() {
       const matchedParts = results.filter(r => r.index === originalItem.index)
       if (matchedParts.length > 1) {
         const groupId = `group_${Date.now()}_${originalItem.index}`
-        matchedParts.forEach((part, partIdx) => {
+        const totalParts = matchedParts.length
+        // 按 part_index 升序，避免 LLM 乱序输出导致拼接错位
+        const sortedParts = [...matchedParts].sort((a, b) => (a.part_index ?? 0) - (b.part_index ?? 0))
+        // 若 LLM 未逐段返回 original_part_text，则整句原文只放在第 1 段
+        const hasAnyPartText = sortedParts.some(p => Boolean(p.original_part_text))
+        sortedParts.forEach((part, partIdx) => {
+          const isFirstPart = partIdx === 0
           newDialogues.push({
             id: `dialogue_${Date.now()}_${currentGlobalIndex}`,
             index: currentGlobalIndex++,
+            sourceIndex: originalItem.index,
             speaker: originalItem.speaker,
-            original_text: part.original_part_text || originalItem.original_text || originalItem.text,
+            original_text: part.original_part_text
+              ? part.original_part_text
+              : (isFirstPart ? (originalItem.original_text || originalItem.text) : ''),
             text: part.ja_text || '',
             context: originalItem.context,
             matched_audio_id: part.matched_audio_id,
             speed: normalizeLlmSpeed(part.speed),
             inferred_emotion: part.inferred_emotion,
-            reason: part.reason || `[第${partIdx + 1}段]`,
+            reason: part.reason || `[第${partIdx + 1}/${totalParts}段]`,
             status: 'idle',
             groupId,
             partIndex: partIdx + 1,
-            totalParts: matchedParts.length
+            totalParts
           })
         })
+        if (!hasAnyPartText) {
+          addLog('warn', 'LLM', `第 ${originalItem.index} 句被拆分为 ${totalParts} 段，但 LLM 未返回 original_part_text；已保留整句原文于第 1 段。`)
+        }
       } else if (matchedParts.length === 1) {
         const match = matchedParts[0]
         newDialogues.push({
           ...originalItem,
           index: currentGlobalIndex++,
+          sourceIndex: originalItem.index,
           original_text: originalItem.original_text || originalItem.text,
           text: match.ja_text || originalItem.text,
           matched_audio_id: match.matched_audio_id,
@@ -373,7 +386,7 @@ async function handleLlmMatch() {
           reason: match.reason
         })
       } else {
-        newDialogues.push({ ...originalItem, index: currentGlobalIndex++ })
+        newDialogues.push({ ...originalItem, index: currentGlobalIndex++, sourceIndex: originalItem.index })
       }
     })
 

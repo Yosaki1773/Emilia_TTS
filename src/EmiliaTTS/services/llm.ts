@@ -226,15 +226,27 @@ ${catalog}
       }
     }
 
+    // 防御性归一化：LLM 偶尔会输出对象/数组形态的字段，需要先转字符串
+    const safeString = (v: unknown, fallback = ''): string => {
+      if (v === null || v === undefined) return fallback
+      if (typeof v === 'string') return v
+      if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+      try {
+        return JSON.stringify(v)
+      } catch {
+        return fallback
+      }
+    }
+
     return {
-      index: Number(m.index),
+      index: Number(m.index) || 0,
       part_index: m.part_index ? Number(m.part_index) : undefined,
       original_part_text: m.original_part_text ? String(m.original_part_text) : undefined,
-      ja_text: String(m.ja_text || ''),
+      ja_text: safeString(m.ja_text, ''),
       matched_audio_id: rawAudioId,
       speed,
-      inferred_emotion: String(m.inferred_emotion || '平静'),
-      reason: String(m.reason || '')
+      inferred_emotion: safeString(m.inferred_emotion, '平静'),
+      reason: safeString(m.reason, '')
     }
   })
 }

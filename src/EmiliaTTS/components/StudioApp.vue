@@ -1,5 +1,5 @@
 <template>
-  <div v-if="visible" class="studio-overlay" @click.self="$emit('close')">
+  <div v-if="isShown" class="studio-overlay" @click.self="requestClose">
     <div class="studio-window">
       <!-- 顶部导航栏 -->
       <Header
@@ -12,7 +12,7 @@
         @open-tts-config="showTtsConfigModal = true"
         @open-logs="showLogModal = true"
         @open-history="showTaskHistoryModal = true"
-        @close="$emit('close')"
+        @close="requestClose"
       />
 
       <!-- 主工作区 -->
@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, isRef, type Ref } from 'vue'
 import Header from './Header.vue'
 import TextExtractor from './TextExtractor.vue'
 import DialogueList from './DialogueList.vue'
@@ -90,13 +90,48 @@ import { concatenateAudioUrls } from '../services/audioMerger'
 import { addLog } from '../services/logger'
 import { loadPluginSettings, savePluginSettings } from '../services/storage'
 
-defineProps<{
-  visible: boolean
+// 兼容酒馆助手常见的两种使用方式：
+// 1) 传入响应式 ref (例如 const visible = ref(false))，自动解包 .value
+// 2) 直接传入 boolean（搭配 v-model:visible 模式）
+// 3) 父组件也可通过监听 onClose 手动控制 ref
+const props = defineProps<{
+  visible: boolean | Ref<boolean>
+  onClose?: () => void
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'update:visible', value: boolean): void
 }>()
+
+// 统一获取 visible 的当前值（兼容 ref / boolean）
+function readVisible(): boolean {
+  if (isRef(props.visible)) return Boolean(props.visible.value)
+  return Boolean(props.visible)
+}
+
+// 统一设置 visible 的值（兼容 ref / boolean）
+function writeVisible(value: boolean) {
+  if (isRef(props.visible)) {
+    props.visible.value = value
+  }
+  emit('update:visible', value)
+}
+
+const isShown = computed(() => readVisible())
+
+function requestClose() {
+  writeVisible(false)
+  // 同时触发 Vue 标准的 close 事件和酒馆风格的 onClose prop
+  emit('close')
+  if (typeof props.onClose === 'function') {
+    try {
+      props.onClose()
+    } catch (e) {
+      console.error('[Emilia TTS Studio] onClose handler error:', e)
+    }
+  }
+}
 
 const settings = reactive<PluginSettings>(loadPluginSettings())
 
