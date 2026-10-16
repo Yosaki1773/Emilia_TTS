@@ -13,6 +13,7 @@ export const DEFAULT_TTS_CONFIG: TTSConfig = {
   is_cut_text: true,
   cut_minlen: 10,
   cut_mute: 0.3,
+  text_split_method: 'cut1',
   return_subtitles: false
 }
 

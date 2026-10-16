@@ -51,6 +51,7 @@ export interface TTSConfig {
   is_cut_text: boolean
   cut_minlen: number
   cut_mute: number
+  text_split_method: string
   return_subtitles: boolean
 }
 

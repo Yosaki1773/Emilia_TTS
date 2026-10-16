@@ -27,3 +27,17 @@ export function normalizeLlmSpeed(value: unknown): LlmSpeed {
     return Math.abs(option - speed) < Math.abs(closest - speed) ? option : closest
   }, DEFAULT_LLM_SPEED)
 }
+
+// 切分方式候选（与原版 GPT-SoVITS TTS_infer_pack 一致）
+export const CUT_METHOD_OPTIONS = [
+  { value: 'cut0', label: '不切分（整段合成）' },
+  { value: 'cut1', label: '凑 4 句一切' },
+  { value: 'cut2', label: '凑 50 字一切' },
+  { value: 'cut3', label: '按中文句号切（。）' },
+  { value: 'cut4', label: '按英文句号切（.）' },
+  { value: 'cut5', label: '按标点逐字符切' }
+] as const
+
+export type CutMethod = (typeof CUT_METHOD_OPTIONS)[number]['value']
+
+export const DEFAULT_CUT_METHOD: CutMethod = 'cut1'

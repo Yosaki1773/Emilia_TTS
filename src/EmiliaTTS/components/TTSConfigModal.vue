@@ -18,6 +18,16 @@
           <small>本地 GSV-TTS-Lite 服务运行地址，默认 http://127.0.0.1:9880</small>
         </div>
 
+        <div class="form-group">
+          <label>切分方式（text_split_method）：</label>
+          <select v-model="form.text_split_method" class="input-control">
+            <option v-for="opt in cutMethodOptions" :key="opt.value" :value="opt.value">
+              {{ opt.value }} - {{ opt.label }}
+            </option>
+          </select>
+          <small>与原版 GPT-SoVITS 5 档切分语义一致；默认 cut1（凑 4 句一切）</small>
+        </div>
+
         <div class="param-grid">
           <div class="form-group">
             <label>默认语速倍率 (Speed)：{{ form.speed }}x</label>
@@ -94,25 +104,31 @@
 
         <div class="switch-row">
           <label class="switch-label">
-            <input v-model="form.is_cut_text" type="checkbox" />
-            <span>按标点切分长句 (is_cut_text)</span>
-          </label>
-          <label class="switch-label">
             <input v-model="form.return_subtitles" type="checkbox" />
             <span>返回时间轴字幕 (return_subtitles)</span>
           </label>
         </div>
 
-        <div v-if="form.is_cut_text" class="cut-params-row">
-          <div class="form-group half">
-            <label>切分最小长度 (cut_minlen)：</label>
-            <input v-model.number="form.cut_minlen" type="number" min="1" max="100" class="input-control" />
+        <details class="advanced-section">
+          <summary>高级（兼容旧版参数）</summary>
+          <div class="switch-row">
+            <label class="switch-label">
+              <input v-model="form.is_cut_text" type="checkbox" />
+              <span>按标点切分长句 (is_cut_text)</span>
+            </label>
           </div>
-          <div class="form-group half">
-            <label>切分静音时长 (cut_mute 秒)：</label>
-            <input v-model.number="form.cut_mute" type="number" step="0.05" min="0" max="2" class="input-control" />
+          <div class="cut-params-row">
+            <div class="form-group half">
+              <label>切分最小长度 (cut_minlen)：</label>
+              <input v-model.number="form.cut_minlen" type="number" min="1" max="100" class="input-control" />
+            </div>
+            <div class="form-group half">
+              <label>切分静音时长 (cut_mute 秒)：</label>
+              <input v-model.number="form.cut_mute" type="number" step="0.05" min="0" max="2" class="input-control" />
+            </div>
           </div>
-        </div>
+          <small>勾选"切分方式"非 cut0 时，后端会忽略这些字段。</small>
+        </details>
 
         <div
           v-if="testMessage"
@@ -140,6 +156,7 @@
 import { ref, reactive, watch } from 'vue'
 import type { TTSConfig } from '../types'
 import { checkTTSHealth } from '../services/tts'
+import { CUT_METHOD_OPTIONS } from '../config'
 
 const props = defineProps<{
   visible: boolean
@@ -160,6 +177,8 @@ watch(() => props.config, (newVal) => {
 const testing = ref(false)
 const testStatus = ref<'idle' | 'success' | 'error'>('idle')
 const testMessage = ref('')
+
+const cutMethodOptions = CUT_METHOD_OPTIONS
 
 async function testTTS() {
   testing.value = true
@@ -184,6 +203,8 @@ async function testTTS() {
 }
 
 function save() {
+  // 联动：选 cut0 时 is_cut_text 自动 false
+  form.is_cut_text = form.text_split_method !== 'cut0'
   emit('save', { ...form })
   emit('close')
 }
@@ -242,6 +263,25 @@ function save() {
 
 .form-group.half {
   flex: 1;
+}
+
+.advanced-section {
+  border: 1px solid var(--border, #ccc);
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: var(--bg-soft, rgba(0, 0, 0, 0.02));
+}
+
+.advanced-section summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+  user-select: none;
+}
+
+.advanced-section[open] summary {
+  margin-bottom: 12px;
 }
 
 .test-message {

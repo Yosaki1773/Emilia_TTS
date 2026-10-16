@@ -70,6 +70,7 @@ export async function synthesizeBatchedDialogues(
     is_cut_text: config.is_cut_text,
     cut_minlen: config.cut_minlen,
     cut_mute: config.cut_mute,
+    text_split_method: config.text_split_method,
     return_subtitles: config.return_subtitles,
     top_k: config.top_k,
     top_p: config.top_p,
