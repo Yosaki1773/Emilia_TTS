@@ -1,7 +1,7 @@
 import { createApp, ref } from 'vue'
 import StudioApp from './components/StudioApp.vue'
 import './styles.css'
-import { createScriptIdDiv } from '@util/script'
+import { teleportStyle } from '@util/script'
 import type { DialogueItem, PluginSettings } from './types'
 import { loadPluginSettings, savePluginSettings } from './services/storage'
 import { extractDialogues, extractXmlTagContent } from './services/dialogueExtractor'
@@ -13,7 +13,8 @@ import { normalizeLlmSpeed } from './config'
 
 const studioVisible = ref(false)
 let appMounted = false
-let studioContainer: JQuery<HTMLDivElement> | null = null
+let studioContainer: HTMLElement | null = null
+let stylesTeleported = false
 
 // 自动任务状态机：使用时间戳实现真正的超时 watchdog，避免 LLM/TTS 卡死后永久阻塞
 type AutoTaskState = {
@@ -74,20 +75,59 @@ export function toggleStudio() {
   }
 }
 
+/**
+ * 解析真正用于显示工作台的主文档。
+ *
+ * 酒馆助手既可能把脚本直接跑在酒馆主页面里，也可能跑在它的 iframe 里；
+ * 后者如果往自己的 `document.body` 上挂界面，overlay 会落在不可见的 iframe 视口外，
+ * 表现就是「按钮点了没反应」。这里优先取同源的父文档。
+ */
+function resolveHostDocument(): Document {
+  try {
+    const parent = window.parent
+    if (parent && parent !== window) {
+      const doc = parent.document
+      // 跨域访问 document 会直接抛错，能读到就说明可用
+      if (doc && doc.body) return doc
+    }
+  } catch {
+    // 跨域/被沙箱隔离：退回当前文档
+  }
+  return document
+}
+
+function ensureStylesIn(doc: Document) {
+  if (stylesTeleported || doc === document) return
+  try {
+    teleportStyle(doc.head)
+    stylesTeleported = true
+    addLog('info', 'SYS', '已将工作台样式同步到酒馆主文档')
+  } catch (e: any) {
+    addLog('warn', 'SYS', `同步工作台样式失败，界面可能缺少样式: ${e?.message || e}`)
+  }
+}
+
 function ensureStudioMounted() {
   if (appMounted && studioContainer) return
 
-  // 防御：若酒馆页面尚未加载 body 完毕，则延后挂载
-  if (!document.body) {
-    addLog('warn', 'SYS', 'document.body 尚未就绪，500ms 后重试挂载')
+  const hostDoc = resolveHostDocument()
+
+  // 防御：若宿主页面尚未加载 body 完毕，则延后挂载
+  if (!hostDoc.body) {
+    addLog('warn', 'SYS', '宿主 document.body 尚未就绪，500ms 后重试挂载')
     setTimeout(ensureStudioMounted, 500)
     return
   }
 
+  ensureStylesIn(hostDoc)
+
   try {
-    studioContainer = createScriptIdDiv()
-      .attr('id', 'emilia-tts-studio-mount')
-      .appendTo('body')
+    // 用宿主文档自己的 createElement，避免跨文档节点在 mount 时出现兼容问题
+    const el = hostDoc.createElement('div')
+    el.id = 'emilia-tts-studio-mount'
+    el.setAttribute('script_id', getScriptId())
+    hostDoc.body.appendChild(el)
+    studioContainer = el
   } catch (e: any) {
     addLog('error', 'SYS', `创建 Studio 容器失败: ${e?.message || e}`)
     return
@@ -104,9 +144,9 @@ function ensureStudioMounted() {
   }
 
   try {
-    app.mount(studioContainer[0])
+    app.mount(studioContainer)
     appMounted = true
-    addLog('success', 'SYS', 'Emilia TTS Studio 组件已成功挂载到 body')
+    addLog('success', 'SYS', 'Emilia TTS Studio 组件已成功挂载到酒馆页面')
   } catch (e: any) {
     addLog('error', 'SYS', `Studio 挂载失败: ${e?.message || e}`)
   }
