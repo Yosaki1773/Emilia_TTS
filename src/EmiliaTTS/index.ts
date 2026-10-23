@@ -47,16 +47,6 @@ function releaseAutoTask() {
 
 let settings: PluginSettings = loadPluginSettings()
 
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, c => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[c] as string))
-}
-
 export function openStudio() {
   ensureStudioMounted()
   studioVisible.value = true
@@ -332,13 +322,33 @@ export async function processMessage(messageId: number) {
       }
     })
 
+    // 只对「文本 + 参考音频都齐全」的条目发起合成。
+    // 注意：synthesizeBatchedDialogues 内部也会过滤，但回填必须使用同一个子集，
+    // 否则中间有草稿条目时，后续所有行的音频都会整体错位一位。
+    const validDialogues = finalDialogues.filter(d => d.text && d.matched_audio_id)
+    if (validDialogues.length === 0) {
+      addLog('warn', 'SYS', `第 ${messageId} 楼没有可合成的对白（缺少文本或参考音频），已跳过`)
+      releaseAutoTask()
+      return
+    }
+
     const synthRes = await synthesizeBatchedDialogues(
-      finalDialogues,
+      validDialogues,
       settings.references,
       settings.tts
     )
 
-    finalDialogues.forEach((d, i) => {
+    if (!synthRes.filenames || synthRes.filenames.length !== validDialogues.length) {
+      addLog(
+        'error',
+        'TTS',
+        `返回文件数量 (${synthRes.filenames?.length || 0}) 与请求数量 (${validDialogues.length}) 不一致，已跳过回填以避免音频错位`
+      )
+      releaseAutoTask()
+      return
+    }
+
+    validDialogues.forEach((d, i) => {
       d.output_filename = synthRes.filenames[i]
       d.audio_url = getAudioFileUrl(settings.tts.baseUrl, synthRes.filenames[i])
     })
@@ -352,7 +362,7 @@ export async function processMessage(messageId: number) {
       }
     })
 
-    for (const [groupId, items] of groupMap.entries()) {
+    for (const items of groupMap.values()) {
       const urls = items.map(it => it.audio_url).filter(Boolean) as string[]
       if (urls.length === items.length && urls.length > 1) {
         try {
